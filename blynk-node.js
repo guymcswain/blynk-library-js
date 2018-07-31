@@ -185,10 +185,13 @@ exports.SslClient = function(options) {
         opts.ca = self.ca.map(function(item){
           return fs.readFileSync(item);
         });
+        if (opts.ca[0].toString() === '') opts.ca = null;
       }
     }
 
     console.log("Connecting to:", self.addr, self.port);
+    //console.log("self.ca: ", self.ca);
+    //console.log("opts: ", JSON.stringify(opts, null, 2));
     var sock = new net.Socket();
     sock.on('error', function(e) {
       console.log(e)
