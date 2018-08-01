@@ -4,7 +4,7 @@ created to address issues affecting my projects (maybe yours too).
 
 # ['SSL not authorized' when using Let's Encrypt #45](https://github.com/vshymanskyy/blynk-library-js/issues/45)
 
-## Usage example for using blynk server with Let's Encrypt cerbot:
+## Usage example for blynk server with Let's Encrypt cerbot:
 ```js
 var BlynkLib = require('blynk-library');
 
