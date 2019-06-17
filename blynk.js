@@ -645,8 +645,9 @@ Blynk.prototype.disconnect = function(reconnect) {
   if(reconnect && !self.timerConn && !self.timerConnStarted) {
     console.log("REARMING DISCONNECT");
     self.timerConnStarted = setTimeout(function () {
-      self.connect()}, 5000);
+      self.connect();
       self.timerConnStarted = null;
+    }, 5000);
   }
 };
 
@@ -658,8 +659,9 @@ Blynk.prototype.error = function(err) {
   //starting reconnect procedure if not already in connecting loop
   if(!self.timerConn && !self.timerConnStarted) {
     self.timerConnStarted = setTimeout(function () {
-      self.connect()}, 5000);
+      self.connect();
       self.timerConnStarted = null;
+    }, 5000);
   }
 };
 
