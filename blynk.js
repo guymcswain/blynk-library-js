@@ -43,15 +43,15 @@ function blynkHeader(msg_type, msg_id, msg_len) {
 
 var MsgType = {
   RSP           :  0,
-  REGISTER      :  1, //"mail pass"
-  LOGIN         :  2, //"token" or "mail pass"
-  SAVE_PROF     :  3,
-  LOAD_PROF     :  4,
-  GET_TOKEN     :  5,
+  REGISTER      :  1, //not in BlynkProtocolDefs_h
+  LOGIN         :  2,
+  SAVE_PROF     :  3, //not in BlynkProtocolDefs_h
+  LOAD_PROF     :  4, //not in BlynkProtocolDefs_h
+  GET_TOKEN     :  5, //not in BlynkProtocolDefs_h
   PING          :  6,
-  ACTIVATE      :  7, //"DASH_ID"
-  DEACTIVATE    :  8, //
-  REFRESH       :  9, //"refreshToken DASH_ID"
+  ACTIVATE      :  7, //not in BlynkProtocolDefs_h
+  DEACTIVATE    :  8, //not in BlynkProtocolDefs_h
+  REFRESH       :  9, //not in BlynkProtocolDefs_h
   TWEET         :  12,
   EMAIL         :  13,
   NOTIFY        :  14,
@@ -61,7 +61,7 @@ var MsgType = {
   SMS           :  18,
   PROPERTY      :  19,
   HW            :  20,
-
+  HW_LOGIN      :  29,
   REDIRECT      :  41,
   DEBUG_PRINT   :  55,
 
@@ -69,10 +69,30 @@ var MsgType = {
 };
 
 var MsgStatus = {
-  OK                    :  200,
-  ILLEGAL_COMMAND       :  2,
-  ALREADY_REGISTERED    :  4,
-  INVALID_TOKEN         :  9
+  OK                     : 200,
+  QUOTA_LIMIT_EXCEPTION  : 1,
+  ILLEGAL_COMMAND        : 2,
+  NOT_REGISTERED         : 3,
+  ALREADY_REGISTERED     : 4,
+  NOT_AUTHENTICATED      : 5,
+  NOT_ALLOWED            : 6,
+  DEVICE_NOT_IN_NETWORK  : 7,
+  NO_ACTIVE_DASHBOARD    : 8,
+  INVALID_TOKEN          : 9,
+  ILLEGAL_COMMAND_BODY   : 11,
+  GET_GRAPH_DATA_EXCEPTION : 12,
+  NO_DATA_EXCEPTION      : 17,
+  DEVICE_WENT_OFFLINE    : 18,
+  SERVER_EXCEPTION       : 19,
+
+  NTF_INVALID_BODY       : 13,
+  NTF_NOT_AUTHORIZED     : 14,
+  NTF_ECXEPTION          : 15,
+
+  TIMEOUT                : 16,
+
+  NOT_SUPPORTED_VERSION  : 20,
+  ENERGY_LIMIT           : 21
 };
 
 var BlynkState = {
@@ -452,10 +472,26 @@ Blynk.prototype.onReceive = function(data) {
     var msg_id   = self.buff_in.charCodeAt(1) << 8 | self.buff_in.charCodeAt(2);
     var msg_len  = self.buff_in.charCodeAt(3) << 8 | self.buff_in.charCodeAt(4);
 
-    if (msg_id === 0)  { return self.disconnect(); }
+    if (process.env.BLYNK_DEBUG && msg_type !== MsgType.RSP) {
+      let body = self.buff_in.substr(5, msg_len);
+      console.log(`P: ${string_of_enum(MsgType, msg_type)}, ID: ${msg_id}, Body: ${body}`);
+    }
+
+    if (msg_id === 0)  {
+      self.emit('error', 'Error Blynk Protocol: msg_id === 0, disconnecting');
+      return self.disconnect();
+    }
 
     if (msg_type === MsgType.RSP) {
-      //console.log('> ', string_of_enum(MsgType, msg_type), msg_id, string_of_enum(MsgStatus, msg_len));
+
+      let responseCode = string_of_enum(MsgStatus, msg_len);
+      if (process.env.BLYNK_DEBUG) {
+        console.log(`P:, ${string_of_enum(MsgType, msg_type)}, ID: ${msg_id}, Rsp: ${responseCode}`);
+      }
+
+      if (responseCode !== 'OK')
+        self.emit('error', `Bad response code: ${responseCode}, id: ${msg_id}`);
+
       if (!self.profile) {
         if (self.timerConn && msg_id === 1) {
           if (msg_len === MsgStatus.OK || msg_len === MsgStatus.ALREADY_REGISTERED) {
@@ -463,8 +499,10 @@ Blynk.prototype.onReceive = function(data) {
             self.timerConn = null;
             self.timerHb = setInterval(function() {
               //console.log('Heartbeat');
+              self.pingId = self.msg_id;
               self.sendMsg(MsgType.PING);
             }, self.heartbeat);
+
             console.log('Authorized');
             self.sendMsg(MsgType.INTERNAL, ['ver', '0.5.3', 'buff-in', 4096, 'dev', 'js']);
             self.emit('connect');
@@ -490,18 +528,15 @@ Blynk.prototype.onReceive = function(data) {
       continue;
     }
 
-    if (msg_len > 4096)  { return self.disconnect(); }
+    if (msg_len > 4096)  {
+      self.emit('error', 'Error Blynk Protocol: msg_len > 4096, disconnecting');
+      return self.disconnect();
+    }
     if (self.buff_in.length < msg_len+5) {
-      return;
+      return self.sendRsp(MsgType.RSP, msg_id, MsgStatus.ILLEGAL_COMMAND_BODY);
     }
     var values = self.buff_in.substr(5, msg_len).split('\0');
     self.buff_in = self.buff_in.substr(msg_len+5);
-
-    /*if (msg_len) {
-      console.log('> ', string_of_enum(MsgType, msg_type), msg_id, msg_len, values.join('|'));
-    } else {
-      console.log('> ', string_of_enum(MsgType, msg_type), msg_id, msg_len);
-    }*/
 
     if (msg_type === MsgType.LOGIN ||
         msg_type === MsgType.PING)
@@ -555,6 +590,7 @@ Blynk.prototype.onReceive = function(data) {
     } else {
       console.log('Invalid msg type: ', msg_type);
       self.sendRsp(MsgType.RSP, msg_id, MsgStatus.ILLEGAL_COMMAND);
+     // FIX? Per article "Implementing a blynk client library", should disconnect!
     }
   } // end while
 };
@@ -573,7 +609,8 @@ Blynk.prototype.sendRsp = function(msg_type, msg_id, msg_len, data) {
   }
 
   if (msg_type == MsgType.RSP) {
-    //console.log('< ', string_of_enum(MsgType, msg_type), msg_id, string_of_enum(MsgStatus, msg_len));
+    if (process.env.BLYNK_DEBUG)
+      console.log('S: ', string_of_enum(MsgType, msg_type), msg_id, string_of_enum(MsgStatus, msg_len));
     data = blynkHeader(msg_type, msg_id, msg_len)
   } else {
     /*if (msg_len) {
@@ -581,6 +618,8 @@ Blynk.prototype.sendRsp = function(msg_type, msg_id, msg_len, data) {
     } else {
       console.log('< ', string_of_enum(MsgType, msg_type), msg_id, msg_len);
     }*/
+    if (process.env.BLYNK_DEBUG)
+      console.log(`S: ${string_of_enum(MsgType, msg_type)}, ID: ${msg_id}, Len: ${msg_len}, Body: ${data}`);
     data = blynkHeader(msg_type, msg_id, msg_len) + data;
   }
 
