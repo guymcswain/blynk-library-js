@@ -370,7 +370,11 @@ var Blynk = function(auth, options) {
   };
   
   this.WidgetTable = function(vPin) {
+    if (needsEmitter()) {
+      events.EventEmitter.call(this);
+    }
     this.pin = vPin;
+    self.vpins[vPin] = this;
 
     this.clear = function() {
       self.virtualWrite(this.pin, 'clr');
@@ -428,6 +432,7 @@ var Blynk = function(auth, options) {
     util.inherits(this.VirtualPin, events.EventEmitter);
     util.inherits(this.WidgetBridge, events.EventEmitter);
     util.inherits(this.WidgetTerminal, events.EventEmitter);
+    util.inherits(this.WidgetTable, events.EventEmitter);
   }
 
   if (!options.skip_connect) {
