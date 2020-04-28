@@ -473,7 +473,7 @@ Blynk.prototype.onReceive = function(data) {
     var msg_len  = self.buff_in.charCodeAt(3) << 8 | self.buff_in.charCodeAt(4);
 
     if (process.env.BLYNK_DEBUG && msg_type !== MsgType.RSP) {
-      let body = self.buff_in.substr(5, msg_len);
+      let body = self.buff_in.substr(5, msg_len).split('\0');
       console.log(`P: ${string_of_enum(MsgType, msg_type)}, ID: ${msg_id}, Body: ${body}`);
     }
 
@@ -485,21 +485,34 @@ Blynk.prototype.onReceive = function(data) {
     if (msg_type === MsgType.RSP) {
 
       let responseCode = string_of_enum(MsgStatus, msg_len);
-      if (process.env.BLYNK_DEBUG) {
-        console.log(`P:, ${string_of_enum(MsgType, msg_type)}, ID: ${msg_id}, Rsp: ${responseCode}`);
-      }
 
       if (responseCode !== 'OK')
         self.emit('error', `Bad response code: ${responseCode}, id: ${msg_id}`);
+
+      // Is this a PONG response?
+      else if (msg_id === self.pingId) self.pongId = msg_id;
+      // Debug response if not a PONG
+      else if (process.env.BLYNK_DEBUG) {
+        console.log(`P: ${string_of_enum(MsgType, msg_type)}, ID: ${msg_id}, Rsp: ${responseCode}`);
+      }
+
 
       if (!self.profile) {
         if (self.timerConn && msg_id === 1) {
           if (msg_len === MsgStatus.OK || msg_len === MsgStatus.ALREADY_REGISTERED) {
             clearInterval(self.timerConn);
             self.timerConn = null;
+
+            self.pingId = (self.msg_id === 0xFFFF) ? 1 : self.msg_id +1;
+            self.sendMsg(MsgType.PING);
+
             self.timerHb = setInterval(function() {
-              //console.log('Heartbeat');
-              self.pingId = self.msg_id;
+              if (self.pongId !== self.pingId) {
+                console.log("Ping-Pong error", self.pingId, self.pongId);
+                //self.emit('error', "Ping-Pong Timeout, disconnecting!");
+                //return self.disconnect()
+              }
+              self.pingId = (self.msg_id === 0xFFFF) ? 1 : self.msg_id +1;
               self.sendMsg(MsgType.PING);
             }, self.heartbeat);
 
@@ -618,8 +631,9 @@ Blynk.prototype.sendRsp = function(msg_type, msg_id, msg_len, data) {
     } else {
       console.log('< ', string_of_enum(MsgType, msg_type), msg_id, msg_len);
     }*/
-    if (process.env.BLYNK_DEBUG)
-      console.log(`S: ${string_of_enum(MsgType, msg_type)}, ID: ${msg_id}, Len: ${msg_len}, Body: ${data}`);
+    if (process.env.BLYNK_DEBUG && string_of_enum(MsgType, msg_type) !== 'PING')
+      console.log(`S: ${string_of_enum(MsgType, msg_type)},
+                  ID: ${msg_id}, Len: ${msg_len}, Body: ${data.split('\0')}`);
     data = blynkHeader(msg_type, msg_id, msg_len) + data;
   }
 
