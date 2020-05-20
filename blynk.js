@@ -632,8 +632,7 @@ Blynk.prototype.sendRsp = function(msg_type, msg_id, msg_len, data) {
       console.log('< ', string_of_enum(MsgType, msg_type), msg_id, msg_len);
     }*/
     if (process.env.BLYNK_DEBUG && string_of_enum(MsgType, msg_type) !== 'PING')
-      console.log(`S: ${string_of_enum(MsgType, msg_type)},
-                  ID: ${msg_id}, Len: ${msg_len}, Body: ${data.split('\0')}`);
+      console.log(`S: ${string_of_enum(MsgType, msg_type)}, ID: ${msg_id}, Len: ${msg_len}, Body: ${data.split('\0')}`);
     data = blynkHeader(msg_type, msg_id, msg_len) + data;
   }
 
