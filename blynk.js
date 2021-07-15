@@ -485,15 +485,16 @@ Blynk.prototype.onReceive = function(data) {
     if (msg_type === MsgType.RSP) {
 
       let responseCode = string_of_enum(MsgStatus, msg_len);
-
+      if (process.env.BLYNK_DEBUG) {
+        console.log(`P: ${string_of_enum(MsgType, msg_type)}, ID: ${msg_id}, Rsp: ${responseCode}`);
       if (responseCode !== 'OK')
         self.emit('error', `Bad response code: ${responseCode}, id: ${msg_id}`);
 
       // Is this a PONG response?
       else if (msg_id === self.pingId) self.pongId = msg_id;
       // Debug response if not a PONG
-      else if (process.env.BLYNK_DEBUG) {
-        console.log(`P: ${string_of_enum(MsgType, msg_type)}, ID: ${msg_id}, Rsp: ${responseCode}`);
+      //else if (process.env.BLYNK_DEBUG) {
+      //  console.log(`P: ${string_of_enum(MsgType, msg_type)}, ID: ${msg_id}, Rsp: ${responseCode}`);
       }
 
 
@@ -502,9 +503,6 @@ Blynk.prototype.onReceive = function(data) {
           if (msg_len === MsgStatus.OK || msg_len === MsgStatus.ALREADY_REGISTERED) {
             clearInterval(self.timerConn);
             self.timerConn = null;
-
-            self.pingId = (self.msg_id === 0xFFFF) ? 1 : self.msg_id +1;
-            self.sendMsg(MsgType.PING);
 
             self.timerHb = setInterval(function() {
               if (self.pongId !== self.pingId) {
@@ -515,6 +513,9 @@ Blynk.prototype.onReceive = function(data) {
               self.pingId = (self.msg_id === 0xFFFF) ? 1 : self.msg_id +1;
               self.sendMsg(MsgType.PING);
             }, self.heartbeat);
+
+            self.pingId = (self.msg_id === 0xFFFF) ? 1 : self.msg_id +1;
+            self.sendMsg(MsgType.PING);
 
             console.log('Authorized');
             self.sendMsg(MsgType.INTERNAL, ['ver', '0.5.3', 'buff-in', 4096, 'dev', 'js']);
@@ -539,7 +540,9 @@ Blynk.prototype.onReceive = function(data) {
       }
       self.buff_in = self.buff_in.substr(5);
       continue;
-    }
+    } // MsgType.RSP handling completed
+
+    self.timerHb.refresh();
 
     if (msg_len > 4096)  {
       self.emit('error', 'Error Blynk Protocol: msg_len > 4096, disconnecting');
@@ -631,12 +634,14 @@ Blynk.prototype.sendRsp = function(msg_type, msg_id, msg_len, data) {
     } else {
       console.log('< ', string_of_enum(MsgType, msg_type), msg_id, msg_len);
     }*/
-    if (process.env.BLYNK_DEBUG && string_of_enum(MsgType, msg_type) !== 'PING')
+    if (process.env.BLYNK_DEBUG) // && string_of_enum(MsgType, msg_type) !== 'PING')
       console.log(`S: ${string_of_enum(MsgType, msg_type)}, ID: ${msg_id}, Len: ${msg_len}, Body: ${data.split('\0')}`);
     data = blynkHeader(msg_type, msg_id, msg_len) + data;
   }
 
-  self.conn.write(data)
+  self.conn.write(data);
+
+  if (self.timerHb) self.timerHb.refresh();
 
   // TODO: track also recieving time
   /*if (!self.profile) {
