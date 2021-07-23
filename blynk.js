@@ -485,17 +485,14 @@ Blynk.prototype.onReceive = function(data) {
     if (msg_type === MsgType.RSP) {
 
       let responseCode = string_of_enum(MsgStatus, msg_len);
-      if (process.env.BLYNK_DEBUG) {
+      if (process.env.BLYNK_DEBUG)
         console.log(`P: ${string_of_enum(MsgType, msg_type)}, ID: ${msg_id}, Rsp: ${responseCode}`);
       if (responseCode !== 'OK')
         self.emit('error', `Bad response code: ${responseCode}, id: ${msg_id}`);
 
       // Is this a PONG response?
       else if (msg_id === self.pingId) self.pongId = msg_id;
-      // Debug response if not a PONG
-      //else if (process.env.BLYNK_DEBUG) {
-      //  console.log(`P: ${string_of_enum(MsgType, msg_type)}, ID: ${msg_id}, Rsp: ${responseCode}`);
-      }
+
 
 
       if (!self.profile) {
