@@ -503,14 +503,24 @@ Blynk.prototype.onReceive = function(data) {
 
             self.timerHb = setInterval(function() {
               if (self.pongId !== self.pingId) {
-                console.log("Ping-Pong error", self.pingId, self.pongId);
-                //self.emit('error', "Ping-Pong Timeout, disconnecting!");
-                //return self.disconnect()
+                console.warn(`Ping-Pong timeout: ping=${self.pingId}, pong=${self.pongId}`);
+
+                // limit continuous ping timeout warnings
+                self.pingRetries += 1;
+                if (self.pingRetries > 10) {
+                   clearInterval(self.timerHb);
+                   return;
+                }
               }
+              // ping
               self.pingId = (self.msg_id === 0xFFFF) ? 1 : self.msg_id +1;
               self.sendMsg(MsgType.PING);
+              self.pingRetries = 0;
+
             }, self.heartbeat);
 
+            self.pingRetries = 0;
+            // ping
             self.pingId = (self.msg_id === 0xFFFF) ? 1 : self.msg_id +1;
             self.sendMsg(MsgType.PING);
 
@@ -539,7 +549,7 @@ Blynk.prototype.onReceive = function(data) {
       continue;
     } // MsgType.RSP handling completed
 
-    self.timerHb.refresh();
+    if (self.timerHb) self.timerHb.refresh();
 
     if (msg_len > 4096)  {
       self.emit('error', 'Error Blynk Protocol: msg_len > 4096, disconnecting');
@@ -705,6 +715,8 @@ Blynk.prototype.disconnect = function(reconnect) {
   //cleanup to avoid multiplying listeners
   this.conn.removeAllListeners();
 
+  if (self.timerHb) clearInterval(self.timerHb);
+
   //starting reconnect procedure if not already in connecting loop and reconnect is true
   if(reconnect && !self.timerConn && !self.timerConnStarted) {
     console.log("REARMING DISCONNECT");
@@ -720,6 +732,9 @@ Blynk.prototype.error = function(err) {
   //if we throw error and user doesn't handle it, app crashes. is it worth it?
   this.emit('error', err.code?err.code:'ERROR');
   console.error('Error', err.code);
+
+  if (self.timerHb) clearInterval(self.timerHb);
+
   //starting reconnect procedure if not already in connecting loop
   if(!self.timerConn && !self.timerConnStarted) {
     self.timerConnStarted = setTimeout(function () {
