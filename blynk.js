@@ -356,36 +356,51 @@ var Blynk = function(auth, options) {
 
   // Add getter, setter for common properties to VirtualPin
     Object.defineProperties(self.VirtualPin.prototype, {
-      get color() {
-        return this._color;
+      color: {
+        get() {
+          return this._color;
+        },
+        set(v) {
+          this._color = v;
+          self.setProperty(this.pin, 'color', v);
+        },
+        enumerable: true,
+        configurable: true
       },
-      set color(v) {
-        this._color = v;
-        self.setProperty(this.pin, 'color', v);
+      label: {
+        get() {
+          return this._label;
+        },
+        set(v) {
+          this._label = v;
+          self.setProperty(this.pin, 'label', v);
+        },
+        enumerable: true,
+        configurable: true
       },
-      get label() {
-        return this._label;
+      min: {
+        get() {
+          return this._min
+        },
+        set(v) {
+          this._min = v;
+          self.setProperty(this.pin, 'min', v);
+        },
+        enumerable: true,
+        configurable: true
       },
-      set label(v) {
-        this._label = v;
-        self.setProperty(this.pin, 'label', v);
-      },
-      get min() {
-        return this._min
-      },
-      set min(v) {
-        this._min = v;
-        self.setProperty(this.pin, 'min', v);
-      },
-      get max() {
-        return this._max
-      },
-      set max(v) {
-        this._max = v;
-        self.setProperty(this.pin, 'max', v);
-      },
+      max: {
+        get() {
+          return this._max
+        },
+        set(v) {
+          this._max = v;
+          self.setProperty(this.pin, 'max', v);
+        },
+        enumerable: true,
+        configurable: true
+      }
     });
-
 
   this.WidgetBridge = function(vPin) {
     this.pin = vPin;
