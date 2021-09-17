@@ -347,7 +347,45 @@ var Blynk = function(auth, options) {
     this.write = function(value) {
       self.virtualWrite(this.pin, value);
     };
+    // Add properties common to all widgets
+    this._label = undefined;
+    this._color = undefined;
+    this._min = undefined;
+    this._max = undefined;
   };
+
+  // Add getter, setter for common properties to VirtualPin
+    Object.defineProperties(self.VirtualPin.prototype, {
+      get color() {
+        return this._color;
+      },
+      set color(v) {
+        this._color = v;
+        self.setProperty(this.pin, 'color', v);
+      },
+      get label() {
+        return this._label;
+      },
+      set label(v) {
+        this._label = v;
+        self.setProperty(this.pin, 'label', v);
+      },
+      get min() {
+        return this._min
+      },
+      set min(v) {
+        this._min = v;
+        self.setProperty(this.pin, 'min', v);
+      },
+      get max() {
+        return this._max
+      },
+      set max(v) {
+        this._max = v;
+        self.setProperty(this.pin, 'max', v);
+      },
+    });
+
 
   this.WidgetBridge = function(vPin) {
     this.pin = vPin;
