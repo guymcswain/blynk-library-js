@@ -621,7 +621,6 @@ Blynk.prototype.onReceive = function(data) {
       continue;
     } // MsgType.RSP handling completed
 
-    if (self.timerHb) self.timerHb.refresh();
 
     if (msg_len > 4096)  {
       self.emit('error', 'Error Blynk Protocol: msg_len > 4096, disconnecting');
@@ -719,19 +718,6 @@ Blynk.prototype.sendRsp = function(msg_type, msg_id, msg_len, data) {
   }
 
   self.conn.write(data);
-
-  if (self.timerHb) self.timerHb.refresh();
-
-  // TODO: track also recieving time
-  /*if (!self.profile) {
-    if (self.timerHb) {
-      clearInterval(self.timerHb);
-      self.timerHb = setInterval(function(){
-        //console.log('Heartbeat');
-        self.sendMsg(MsgType.PING);
-      }, self.heartbeat);
-    }
-  }*/
 };
 
 Blynk.prototype.sendMsg = function(msg_type, values, msg_id) {
