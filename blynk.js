@@ -368,8 +368,8 @@ var Blynk = function(auth, options) {
     }
     // constructor option to make _value persistent (coherent with server)
     if (persist) {
-      this.on('write', v => {this._value = v});
-      self.syncVirtual(this.pin);
+      this.on('write', v => {this._value = v[0]});
+      self.addListener('connect', this.syncVirtual.bind(this));
     }
   };
   assign_propertyAccessors(self.Widget.prototype,
