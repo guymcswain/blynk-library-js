@@ -357,6 +357,7 @@ var Blynk = function(auth, options) {
     this._min = undefined;
     this._max = undefined;
     this._value = undefined; // cached value
+    this._syncValue = persist;
 
     // convenience method to set unique widget properties (ie 'labels')
     this.setProperty = function(prop, value) {
@@ -366,50 +367,59 @@ var Blynk = function(auth, options) {
     this.syncVirtual = function() {
       self.syncVirtual(this.pin);
     }
-    // constructor option to make _value persistent (coherent with server)
+    // Constructor option to make _value persistent and coherent with server.
     if (persist) {
-      this.on('write', v => {this._value = v[0]});
-      self.addListener('connect', this.syncVirtual.bind(this));
+
+      // Update value property after user's listener has run.
+      this.on('write', v => {
+         setImmediate(v => this._value = v, v[0]);
+      })
+      this.syncVirtual();
     }
   };
+  util.inherits(self.Widget, self.VirtualPin);
   assign_propertyAccessors(self.Widget.prototype,
     'label', 'color', 'min', 'max', 'value');
 
   /** Button is subclass of Widget with own property accessors */
-  self.Button = function(vpin) {
+  self.Button = function(...args) {
     this._onLabel = undefined;
     this._offLabel = undefined;
-    self.Widget.call(this, vpin);
+    self.Widget.call(this, ...args);
   };
+  util.inherits(self.Button, self.Widget);
   assign_propertyAccessors(self.Button.prototype, 'onLabel', 'offLabel');
 
   /** StyledButton is subclass of Button with own property accessors */
-  self.StyledButton = function(vpin) {
+  self.StyledButton = function(...args) {
     this._onColor = undefined;
     this._offColor = undefined;
     this._onBackColor = undefined;
     this._offBackColor = undefined;
-    self.Button.call(this, vpin);
+    self.Button.call(this, ...args);
   };
+  util.inherits(self.StyledButton, self.Button);
   assign_propertyAccessors(self.StyledButton.prototype,
     'onColor','offColor','onBackColor','offBackColor');
 
-  function assign_propertyAccessors(obj, ...accessors) {
-    accessors.forEach(accessor => {
-      let property = '_' + accessor;
+  function assign_propertyAccessors(obj, ...properties) {
+    properties.forEach(property => {
+      let myProperty = '_' + property;
 
-      Object.defineProperty(obj, accessor, {
+      Object.defineProperty(obj, property, {
         get() {
-          return this[property];
+          return this[myProperty];
         },
         set(v) {
-          if (accessor === 'value') {
-            self.virtualWrite(this.pin, v);
+          if (property === 'value') {
+            this.write(v);
+            if (this._syncValue) this.syncVirtual();
+            else this[myProperty] = v;
           }
           else {
-            self.setProperty(this.pin, accessor, v);
+            this.setProperty(property, v);
+            this[myProperty] = v;
           }
-          this[property] = v;
         },
         enumerable: true,
         configurable: true
@@ -417,6 +427,7 @@ var Blynk = function(auth, options) {
 
     });
   };
+
 
   this.WidgetBridge = function(vPin) {
     this.pin = vPin;
@@ -519,9 +530,6 @@ var Blynk = function(auth, options) {
 
   if (needsEmitter()) {
     util.inherits(this.VirtualPin, events.EventEmitter);
-    util.inherits(this.Widget, events.EventEmitter);
-    util.inherits(this.Button, events.EventEmitter);
-    util.inherits(this.StyledButton, events.EventEmitter);
     util.inherits(this.WidgetBridge, events.EventEmitter);
     util.inherits(this.WidgetTerminal, events.EventEmitter);
     util.inherits(this.WidgetTable, events.EventEmitter);
