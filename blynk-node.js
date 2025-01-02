@@ -42,7 +42,7 @@ exports.TcpClient = function(options) {
     self.sock.setEncoding('binary');
     self.sock.connect({
       host: self.addr,
-      family: 4,
+      family: process.env.BLYNK_LIBRARY_IP_VERSION,
       port: self.port
     }, function() {
       console.log('Connected');
@@ -161,7 +161,7 @@ exports.SslClient = function(options) {
       port: self.port,
       servername: self.servername,
       rejectUnauthorized: false,
-      family: 4
+      family: process.env.BLYNK_LIBRARY_IP_VERSION // defaults to 4
     };
     if (self.key) { 
       if (Buffer.isBuffer(self.key)) {
@@ -198,7 +198,7 @@ exports.SslClient = function(options) {
     });
     sock.connect({
       host: self.addr,
-      family: 4,
+      family: process.env.BLYNK_LIBRARY_IP_VERSION,
       port: self.port
     }, function() {
       console.log("SSL authorization...");
