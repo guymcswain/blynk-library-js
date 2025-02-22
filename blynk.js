@@ -842,7 +842,8 @@ Blynk.prototype.email = function(to, topic, message) {
 };
 
 Blynk.prototype.notify = function(message) {
-  this.sendMsg(MsgType.NOTIFY, [message]);
+  // message can be a string or array of strings
+  this.sendMsg(MsgType.NOTIFY, [].concat(message));
 };
 
 Blynk.prototype.tweet = function(message) {
