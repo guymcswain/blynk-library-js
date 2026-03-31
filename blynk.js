@@ -286,6 +286,7 @@ var Blynk = function(auth, options) {
   this.auth = auth;
   var options = options || {};
   this.heartbeat = options.heartbeat || (10*1000);
+  this.pingRetriesLimit = Math.ceil((options.socketIdleTimeout || 90) * 1000 / this.heartbeat);
 
   console.log("\n\
     ___  __          __\n\
@@ -571,7 +572,10 @@ Blynk.prototype.onReceive = function(data) {
         self.emit('error', `Bad response code: ${responseCode}, id: ${msg_id}`);
 
       // Is this a PONG response?
-      else if (msg_id === self.pingId) self.pongId = msg_id;
+      else if (msg_id === self.pingId) {
+         self.pongId = msg_id;
+         self.pingRetries = 0;
+      }
 
 
 
@@ -585,17 +589,17 @@ Blynk.prototype.onReceive = function(data) {
               if (self.pongId !== self.pingId) {
                 console.warn(`Ping-Pong timeout: ping=${self.pingId}, pong=${self.pongId}`);
 
-                // limit continuous ping timeout warnings
+                // After pingRetriesLimit consecutive heartbeats, disconnect.
                 self.pingRetries += 1;
-                if (self.pingRetries > 10) {
+                if (self.pingRetries > self.pingRetriesLimit) {
                    clearInterval(self.timerHb);
-                   return;
+                   self.timerHb = null;
+                   return self.disconnect(true); // true == reconnect
                 }
               }
               // ping
               self.pingId = (self.msg_id === 0xFFFF) ? 1 : self.msg_id +1;
               self.sendMsg(MsgType.PING);
-              self.pingRetries = 0;
 
             }, self.heartbeat);
 
