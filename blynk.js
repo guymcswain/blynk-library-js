@@ -363,6 +363,7 @@ var Blynk = function(auth, options) {
     // convenience method to set unique widget properties (ie 'labels')
     this.setProperty = function(prop, value) {
       self.setProperty(this.pin, prop, value);
+      this['_'+prop] = value; // update the property cache
     }
     // convenience method to get value from server to widget's 'write' listener.
     this.syncVirtual = function() {
@@ -379,7 +380,26 @@ var Blynk = function(auth, options) {
     }
   };
   util.inherits(self.Widget, self.VirtualPin);
-  assign_propertyAccessors(self.Widget.prototype,
+
+   // Assign value accessors  - common to all Widget and subclasses
+   Object.defineProperty(self.Widget.prototype, 'value', {
+     get() {
+       return this._value;
+     },
+     set(v) {
+         this.write(v);
+         if (this._syncValue) { // persist construction
+            this.syncVirtual(); // update cache from remote blynk server
+         }
+         else {
+            this._value = v; // update the cache locally
+         }
+     },
+     enumerable: true,
+     configurable: true
+   });
+  // Assign the blynk property accessors, cashed locally.
+  assignBlynk_propertyAccessors(self.Widget.prototype,
     'label', 'color', 'min', 'max', 'value');
 
   /** Button is subclass of Widget with own property accessors */
@@ -389,7 +409,7 @@ var Blynk = function(auth, options) {
     self.Widget.call(this, ...args);
   };
   util.inherits(self.Button, self.Widget);
-  assign_propertyAccessors(self.Button.prototype, 'onLabel', 'offLabel');
+  assignBlynk_propertyAccessors(self.Button.prototype, 'onLabel', 'offLabel');
 
   /** StyledButton is subclass of Button with own property accessors */
   self.StyledButton = function(...args) {
@@ -400,10 +420,11 @@ var Blynk = function(auth, options) {
     self.Button.call(this, ...args);
   };
   util.inherits(self.StyledButton, self.Button);
-  assign_propertyAccessors(self.StyledButton.prototype,
+  assignBlynk_propertyAccessors(self.StyledButton.prototype,
     'onColor','offColor','onBackColor','offBackColor');
 
-  function assign_propertyAccessors(obj, ...properties) {
+
+  function assignBlynk_propertyAccessors(obj, ...properties) {
     properties.forEach(property => {
       let myProperty = '_' + property;
 
@@ -412,15 +433,8 @@ var Blynk = function(auth, options) {
           return this[myProperty];
         },
         set(v) {
-          if (property === 'value') {
-            this.write(v);
-            if (this._syncValue) this.syncVirtual();
-            else this[myProperty] = v;
-          }
-          else {
-            this.setProperty(property, v);
-            this[myProperty] = v;
-          }
+          // NB: setProperty sets the cached properties
+          this.setProperty(property, v);
         },
         enumerable: true,
         configurable: true
