@@ -790,7 +790,9 @@ Blynk.prototype.disconnect = function(reconnect) {
   }
 
   var self = this;
-  this.conn.disconnect();
+  this.conn.disconnect(); // destroys socket and removes all listeners
+  this.buff_in = ''; // reset the receive buffer
+
   if (this.timerHb) {
     clearInterval(this.timerHb);
     this.timerHb = null;
@@ -805,7 +807,7 @@ Blynk.prototype.disconnect = function(reconnect) {
   if(reconnect && !self.timerConn && !self.timerConnStarted) {
     console.log("REARMING DISCONNECT");
     self.timerConnStarted = setTimeout(function () {
-      self.connect();
+      self.connect(); // creates a new socket
       self.timerConnStarted = null;
     }, 5000);
   }
