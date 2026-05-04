@@ -400,7 +400,7 @@ var Blynk = function(auth, options) {
    });
   // Assign the blynk property accessors, cashed locally.
   assignBlynk_propertyAccessors(self.Widget.prototype,
-    'label', 'color', 'min', 'max', 'value');
+    'label', 'color', 'min', 'max');
 
   /** Button is subclass of Widget with own property accessors */
   self.Button = function(...args) {
