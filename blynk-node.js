@@ -140,6 +140,7 @@ exports.SslClient = function(options) {
   // This is necessary only if the server uses the self-signed certificate
   self.ca   = options.ca   || [ path.join(certs_path, 'server.crt') ];
   self.servername = options.servername || self.addr;
+  self.connectTimeout = options.connectTimeout || 15000; // ms, TCP connect incl. DNS
 
   var net = require('net');
   var tls = require('tls');
@@ -152,9 +153,10 @@ exports.SslClient = function(options) {
   };
 
   this.connect = function(done) {
-    if (self.sock) {
-      self.disconnect();
-    }
+    // Always clean up, including a raw socket that is still connecting.
+    // Previously only self.sock (set after TCP connect) was checked, so
+    // attempts stuck in DNS/TCP connect piled up during network outages.
+    self.disconnect();
 
     var opts = {
       host: self.addr,
@@ -192,48 +194,73 @@ exports.SslClient = function(options) {
     console.log("Connecting to:", self.addr, self.port);
     //console.log("self.ca: ", self.ca);
     //console.log("opts: ", JSON.stringify(opts, null, 2));
-    var sock = new net.Socket();
+    var sock = self.rawSock = new net.Socket();
     sock.on('error', function(e) {
       console.log(e)
+    });
+    // Give up on attempts that hang (e.g. slow DNS); the caller's
+    // reconnect loop will start a fresh one.
+    sock.setTimeout(self.connectTimeout, function() {
+      sock.destroy(new Error('Connect timeout after ' + self.connectTimeout + ' ms'));
     });
     sock.connect({
       host: self.addr,
       family: 0, // either IPv4 or IPv6
       port: self.port
     }, function() {
+      // A newer connect() or a disconnect() has replaced this attempt.
+      if (sock !== self.rawSock) {
+        sock.destroy();
+        return;
+      }
+      sock.setTimeout(0);
       console.log("SSL authorization...");
       opts.socket = sock;
-      self.sock = tls.connect(opts, function() {
-        if (!self.sock.authorized) {
-          console.log('SSL not authorized:', self.sock.authorizationError);
+      // Use this attempt's own TLS socket in callbacks, never self.sock,
+      // which may have been replaced or nulled by the time they run.
+      var tlsSock = self.sock = tls.connect(opts, function() {
+        if (tlsSock !== self.sock) {
+          tlsSock.destroy();
+          return;
+        }
+        if (!tlsSock.authorized) {
+          console.log('SSL not authorized:', tlsSock.authorizationError);
           return;
         }
         console.log('Connected');
-        self.sock.setNoDelay(true);
-        self.sock.setEncoding('binary');
-        self.sock.on('data', function(data) {
+        tlsSock.setNoDelay(true);
+        tlsSock.setEncoding('binary');
+        tlsSock.on('data', function(data) {
           self.emit('data', data);
         });
-        self.sock.on('end', function(data) {
+        tlsSock.on('end', function(data) {
           self.emit('end', data);
         });
-        
+
         done();
       });
 
-      self.sock.on('error', function(err) {
+      tlsSock.on('error', function(err) {
           //console.log('error', err.code);
-          self.emit('error', err);
+          if (tlsSock === self.sock) self.emit('error', err);
       });
     });
   };
 
   this.disconnect = function() {
+    // Keep a no-op error listener on destroyed sockets so a late error
+    // can't become an uncaught exception.
     if (self.sock) {
-      self.sock.destroy();
       self.sock.removeAllListeners();
+      self.sock.on('error', function() {});
+      self.sock.destroy();
       self.sock = null;
-      
+    }
+    if (self.rawSock) {
+      self.rawSock.removeAllListeners();
+      self.rawSock.on('error', function() {});
+      self.rawSock.destroy();
+      self.rawSock = null;
     }
   };
 };
